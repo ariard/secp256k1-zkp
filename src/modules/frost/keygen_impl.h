@@ -151,25 +151,10 @@ int secp256k1_frost_share_gen(const secp256k1_context *ctx, secp256k1_pubkey *vs
     secp256k1_sha256_write(&sha, session_id, 32);
     secp256k1_sha256_write(&sha, buf, 32);
     for (i = 0; i < 8; i++) {
-        rngseed[i + 0] = threshold / (1ull << (i * 8));
+        rngseed[i] = threshold / (1ull << (i * 8));
     }
     secp256k1_sha256_write(&sha, rngseed, 8);
     secp256k1_sha256_finalize(&sha, rngseed);
-    /* Derive coefficients commitments from the seed */
-    if (vss_commitment != NULL) {
-        for (i = 0; i < threshold - 1; i++) {
-            secp256k1_gej rj;
-            secp256k1_ge rp;
-
-            if (i % 2 == 0) {
-                secp256k1_scalar_chacha20(&rand[0], &rand[1], rngseed, i);
-            }
-            /* Compute commitment to each coefficient */
-            secp256k1_ecmult_gen(&ctx->ecmult_gen_ctx, &rj, &rand[i % 2]);
-            secp256k1_ge_set_gej(&rp, &rj);
-            secp256k1_pubkey_save(&vss_commitment[threshold - i - 1], &rp);
-        }
-    }
 
     /* Derive share */
     /* See draft-irtf-cfrg-frost-08#appendix-C.1 */
@@ -184,6 +169,16 @@ int secp256k1_frost_share_gen(const secp256k1_context *ctx, secp256k1_pubkey *vs
         /* Horner's method to evaluate polynomial to derive shares */
         secp256k1_scalar_add(&share_i, &share_i, &rand[i % 2]);
         secp256k1_scalar_mul(&share_i, &share_i, &idx);
+        /* Derive coefficients commitments from the seed */
+        if (vss_commitment != NULL) {
+            secp256k1_gej rj;
+            secp256k1_ge rp;
+
+            /* Compute commitment to each coefficient */
+            secp256k1_ecmult_gen(&ctx->ecmult_gen_ctx, &rj, &rand[i % 2]);
+            secp256k1_ge_set_gej(&rp, &rj);
+            secp256k1_pubkey_save(&vss_commitment[threshold - i - 1], &rp);
+        }
     }
     secp256k1_scalar_add(&share_i, &share_i, &sk);
     secp256k1_frost_share_save(share, &share_i);
