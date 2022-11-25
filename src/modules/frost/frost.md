@@ -91,3 +91,14 @@ after exchanging nonces (step 3).
 # Verification
 
 A participant who wants to verify the partial signatures, but does not sign itself may do so using the above instructions except that the verifier skips steps 1, 3 and 5.
+
+# Atomic Swaps
+
+The signing API supports the production of "adaptor signatures", modified partial signatures
+which are offset by an auxiliary secret known to one party. That is,
+1. One party generates a (secret) 32-byte adaptor `t` with corresponding (public) adaptor `T = t*G` (e.g a 32-byte read of "/dev/urandom").
+2. When calling `secp256k1_frost_nonce_process`, the public adaptor `T` is provided as the `adaptor` argument.
+3. The party who is going to extract the secret adaptor `t` later must verify all partial signatures (`secp256k1_frost_partial_sig_verify`).
+4. Due to step 2, the signature output of `secp256k1_frost_partial_sig_agg` is a pre-signature and not a valid Schnorr signature. All parties involved extract this session's `nonce_parity_bit` with `secp256k1_frost_nonce_parity`.
+5. The party who knows `t` must "adapt" the pre-signature with `t` (and the `nonce_parity` using `secp256k1_frost_adapt` to complete the signature).
+6. Any party who sees both the final signature and the pre-signature (and has the `nonce_parity`) can extract `t` with `secp256k1_musig_extract_adaptor`
